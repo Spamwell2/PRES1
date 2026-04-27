@@ -1,0 +1,374 @@
+﻿@using Umbraco.Cms.Web.Common.PublishedModels;
+@using ContentModels = Umbraco.Cms.Web.Common.PublishedModels;
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContentModels.Events>
+@using Umbraco.Cms.Core.Web;
+@using System;
+@using Microsoft.AspNetCore.Http.Extensions;
+@using Umbraco.Cms.Core.Services;
+@using Umbraco.Cms.Core.PropertyEditors;
+@inject IDataTypeService _dataTypeValueService;
+
+@{
+    Layout = "_layout.cshtml";
+    var pageTitle = !string.IsNullOrEmpty(Model.PageTitle) ? Model.PageTitle : Model.Name;
+
+    // Determine the current and opposite cultures
+    var currentCulture = Umbraco.CultureDictionary.Culture.Name;
+    var oppositeCulture = currentCulture == "cy-GB" ? "en-GB" : "cy-GB";
+
+    // Pagination setup
+    var pageNumber = int.TryParse(Context.Request.Query["page"], out var p) ? Math.Max(p, 1) : 1; // Default to page 1
+    var pageSize = 4; // Number of items per page
+    var skip = (pageNumber - 1) * pageSize;
+
+    // Get selected category or tag
+    var selectedCategory = Context.Request.Query["category"].ToString();
+    var selectedTag = Context.Request.Query["tag"].ToString();
+
+    // Get Categories
+    var categories = Model?.Categories;
+
+    // Get useful links
+    var usefulLinks = Model?.UsefulLinks;
+
+    // Fetch events
+    var eventsPage = Model;
+    var eventPostsQuery = eventsPage?
+    .Children()
+    .OfType<EventItemPage>()
+        .Where(post =>
+            (string.IsNullOrEmpty(selectedCategory) || post.Value<string>("category") == selectedCategory) &&
+            (string.IsNullOrEmpty(selectedTag) || (post.Value<IEnumerable<string>>("tags")?.Select(tag => tag.ToLowerInvariant()).Contains(selectedTag.ToLowerInvariant()) ?? false))
+        )
+        .Select(post => new
+        {
+            Title = !string.IsNullOrWhiteSpace(post.Value<string>("pageTitle")) ? post.Value<string>("pageTitle") : post.Name,
+            MainImage = post.Value<IPublishedContent>("mainImage", currentCulture)?.GetCropUrl(1920, 1080) ??
+                        post.Value<IPublishedContent>("mainImage", oppositeCulture)?.GetCropUrl(1920, 1080) ??
+                        Url.Content("~/media/fallback_image"),
+            SummaryText = post.Value<string>("summaryText"),
+            EventDate = post.Value<DateTime?>("eventDate") != null && post.Value<DateTime>("eventDate") > DateTime.MinValue
+                ? post.Value<DateTime>("eventDate")
+                : post.CreateDate,
+            Url = post.Url(),
+            IsPinned = post.Value<bool>("pinPost"),
+            Category = post.Value<string>("Category")
+        });
+
+    var totalPosts = eventPostsQuery?.Count() ?? 0;
+    var eventPosts = eventPostsQuery?
+        .OrderByDescending(post => post.IsPinned) // Pin to top if Pin Post is selected
+        .ThenBy(post => post.EventDate) // Sort by date
+        .Skip(skip)
+        .Take(pageSize)
+        .ToList();
+
+    // Calculate total pages
+    var totalPages = (int)Math.Ceiling((double)totalPosts / pageSize);
+}
+
+<main id="main">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            @if (!string.IsNullOrEmpty(pageTitle))
+            {
+                <h1 class="d-flex justify-content-center text-center fw-bold fs-0 text-shadow bg-primary text-white py-5">@pageTitle</h1>
+            }
+            @if (!string.IsNullOrEmpty(Model?.PageSubtitle))
+            {
+                <h2 class="d-flex justify-content-center text-center fw-semibold fs-3 text-shadow bg-primary text-white pb-5 mt-0">@Model.PageSubtitle</h2>
+            }
+            <div class="container-fluid">
+                <div class="row justify-content-center">
+                    @await Html.PartialAsync("site/breadcrumb")
+                </div>
+            </div>
+            <!-- Main Content -->
+            <div class="col-md-8">
+                @Html.GetBlockListHtml(Model?.MainContent)
+                @if (!string.IsNullOrEmpty(selectedCategory) || !string.IsNullOrEmpty(selectedTag))
+                {
+                    <div class="d-flex justify-content-start ms-md-5 ps-md-4 mt-3">
+                        <a href="@Model?.Url()" class="btn text-white d-inline-flex align-items-center">
+                            <i class="fa fa-chevron-left me-2"></i>@Umbraco.GetDictionaryValue("AllPosts")
+                        </a>
+                    </div>
+                }
+                <!-- Event Posts -->
+                <div class="container my-5">
+                    <div class="row g-4 align-items-stretch events-grid">
+                        @if (eventPosts != null && eventPosts.Any())
+                        {
+                            var isSinglePost = eventPosts.Count == 1;
+                            var postColumnClass = isSinglePost ? "col-12 d-flex" : "col-12 col-xl-6 d-flex";
+                            var imageClass = isSinglePost ? "card-img-top event-image event-image-single" : "card-img-top event-image";
+
+                            foreach (var eventItem in eventPosts)
+                            {
+                                var eventCategory = eventItem.Category;
+
+                                var matchingCategory = categories?.FirstOrDefault(c => c.Content.Value<string>("category") == eventCategory);
+
+                                var color = matchingCategory?.Content.Value<string>("colour");
+                                var categoryColor = !string.IsNullOrEmpty(color) ? $"#{color}" : "var(--custom-base)";
+
+                                var categoryIcon = matchingCategory != null ? matchingCategory.Content.Value<string>("icon") : "";
+                                if (string.IsNullOrWhiteSpace(categoryIcon) || categoryIcon == "Select Icon")
+                                {
+                                    categoryIcon = "fa-solid fa-folder";
+                                }
+
+                                <div class="@postColumnClass">
+                                    <article class="card post-card border-0 h-100 w-100"
+                                             style="--category-color: @categoryColor">
+                                        <!-- Event Image -->
+                                        <div class="img-wrapper position-relative">
+                                            <a href="@eventItem.Url">
+                                                <img src="@eventItem.MainImage"
+                                                     alt="@eventItem.Title"
+                                                     class="@imageClass" />
+                                                <div class="position-absolute bottom-0 start-0 bg-base text-white rounded m-3 px-2 py-1 text-center text-shadow small">
+                                                    <div>@eventItem.EventDate.ToString("dd")</div>
+                                                    <div>@eventItem.EventDate.ToString("MMM yyyy")</div>
+                                                </div>
+                                            </a>
+                                        </div>
+
+                                        <!-- Event Content -->
+                                        <div class="card-body d-flex flex-column">
+                                            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                                <a href="@eventItem.Url" class="text-decoration-none text-dark">
+                                                    <h2 class="card-title fs-3 mb-0">
+                                                        @if (eventItem.IsPinned)
+                                                        {
+                                                            <i class="fa fa-thumbtack ms-2 me-2 text-danger fa-rotate-by"
+                                                               style="--fa-rotate-angle: 45deg;"
+                                                               title="Pinned Post"></i>
+                                                        }
+                                                        @eventItem.Title
+                                                    </h2>
+                                                </a>
+
+                                                <i class="@categoryIcon flex-shrink-0 mt-1"
+                                                   style="color: @categoryColor;"
+                                                   aria-hidden="true"></i>
+                                            </div>
+
+                                            @if (!string.IsNullOrWhiteSpace(eventItem.SummaryText))
+                                            {
+                                                <p class="card-text mb-4">
+                                                    @(eventItem.SummaryText.Length > 180 ? eventItem.SummaryText.Substring(0, 180) + "..." : eventItem.SummaryText)
+                                                </p>
+                                            }
+
+                                            <div class="mt-auto text-center">
+                                                <a href="@eventItem.Url" class="btn px-3">
+                                                    @Umbraco.GetDictionaryValue("ReadMore")
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </article>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="col-12">
+                                <p class="text-center fs-4 fw-medium">@Umbraco.GetDictionaryValue("NoMatch")</p>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Pagination -->
+                    @if (totalPages > 1)
+                    {
+                        <nav aria-label="Events Pagination">
+                            <ul class="pagination justify-content-center">
+                                <!-- Previous Button -->
+                                @if (pageNumber > 1)
+                                {
+                                    <li class="page-item">
+                                        <a class="page-link pagination-button d-flex" href="?page=@(pageNumber - 1)&category=@selectedCategory">
+                                            <i class="fa fa-chevron-left"></i>
+                                        </a>
+                                    </li>
+                                }
+
+                                <!-- Page Numbers -->
+                                @for (int i = 1; i <= totalPages; i++)
+                                {
+                                    <li class="page-item @(i == pageNumber ? "active" : "")">
+                                        <a class="page-link pagination-button d-flex @(i == pageNumber ? "active" : "")" href="?page=@i&category=@selectedCategory">@i</a>
+                                    </li>
+                                }
+
+                                <!-- Next Button -->
+                                @if (pageNumber < totalPages)
+                                {
+                                    <li class="page-item">
+                                        <a class="page-link pagination-button d-flex" href="?page=@(pageNumber + 1)&category=@selectedCategory">
+                                            <i class="fa fa-chevron-right"></i>
+                                        </a>
+                                    </li>
+                                }
+                            </ul>
+                        </nav>
+                    }
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-xl-3 col-md-4 my-sm-5">
+                <aside class="sidebar">
+                    <!-- Categories -->
+                    @if (categories != null)
+                    {
+                        <div class="d-flex align-items-center">
+                            <h3 class="fw-bold mb-3 me-3">@Umbraco.GetDictionaryValue("Category")</h3>
+                            <div class="flex-grow-1 border-2 border-top pb-3"></div>
+                        </div>
+                        <ul class="list-unstyled ms-4">
+                            @foreach (var category in categories)
+                            {
+                                var content = category.Content;
+                                var categoryName = content.Value<string>("category"); // Get the category name
+                                var iconClass = content.Value<string>("icon"); // Get the Font Awesome icon class
+                                var color = content.Value<string>("colour"); // Get the selected color
+                                var categoryColor = !string.IsNullOrWhiteSpace(color) ? "#" + color : "var(--corp-base)";
+                                iconClass = !string.IsNullOrWhiteSpace(iconClass) ? iconClass : "fa-solid fa-flag";
+
+                                <li>
+                                    <a href="?category=@categoryName" class="category-link text-decoration-none d-flex align-items-center gap-2 text-uppercase fs-5 ps-4 py-2 @(selectedCategory == categoryName ? "selected-category fw-bold" : "fw-semibold")"
+                                       style="--category-color: @categoryColor;">
+                                        <span class="d-inline-flex justify-content-center align-items-center flex-shrink-0 category-icon" style="width: 24px;">
+                                            <i class="@iconClass fa-lg"></i>
+                                        </span>
+                                        <span class="ms-2 category-text">@Umbraco.GetDictionaryValue(categoryName)</span>
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    <!--Useful Links-->
+                    @if (usefulLinks != null && usefulLinks.Any())
+                    {
+                        <div class="d-flex align-items-center mt-5">
+                            <h3 class="fw-bold mb-3 me-3">@Umbraco.GetDictionaryValue("UsefulLinks")</h3>
+                            <div class="flex-grow-1 border-2 border-top pb-3"></div>
+                        </div>
+
+                        <ul class="list-unstyled ms-4">
+                            @foreach (var link in usefulLinks)
+                            {
+                                <li>
+                                    <a href="@link.Url" class="text-decoration-none d-flex align-items-center gap-2 text-capitalize fs-5 ps-4 py-2 fw-semibold">
+                                        @link.Name
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    <!-- Archive Section -->
+                    <div class="d-flex align-items-center mt-5">
+                        <h3 class="fw-bold mb-3 me-3">@Umbraco.GetDictionaryValue("Archive")</h3>
+                        <div class="flex-grow-1 border-2 border-top pb-3"></div>
+                    </div>
+                    <ul class="list-unstyled ms-5">
+                        @{
+                            // Fetch all events to calculate the archive
+                            var allEvents = eventsPage?.Children<EventItemPage>()
+                            .Select(post => new
+                            {
+                                Title = !string.IsNullOrWhiteSpace(post.Value<string>("pageTitle")) ? post.Value<string>("pageTitle") : post.Name,
+                                EventDate = post.Value<DateTime?>("eventDate") != null && post.Value<DateTime>("eventDate") > DateTime.MinValue
+                            ? post.Value<DateTime>("eventDate")
+                            : post.CreateDate,
+                                Url = post.Url()
+                            })
+                            .OrderByDescending(post => post.EventDate)
+                            .ToList();
+
+                            // Group posts by year and month
+                            var archiveGrouped = allEvents?
+                            .GroupBy(post => post.EventDate.Year)
+                            .OrderByDescending(group => group.Key)
+                            .ToList();
+                        }
+
+                        @if (archiveGrouped != null && archiveGrouped.Any())
+                        {
+                            foreach (var yearGroup in archiveGrouped)
+                            {
+                                <li>
+                                    <a href="#" class="fw-bold text-uppercase fs-5 d-flex align-items-center py-2" data-bs-toggle="collapse" data-bs-target="#year-@yearGroup.Key" aria-expanded="false" aria-controls="year-@yearGroup.Key">
+                                        @yearGroup.Key
+                                    </a>
+                                    <ul class="list-unstyled collapse" id="year-@yearGroup.Key">
+                                        @{
+                                            var monthsGrouped = yearGroup
+                                            .GroupBy(post => post.EventDate.ToString("MMMM"))
+                                            .OrderByDescending(group => DateTime.ParseExact(group.Key, "MMMM", null).Month);
+                                        }
+
+                                        @foreach (var monthGroup in monthsGrouped)
+                                        {
+                                            <li>
+                                                <a href="#" class="fw-semibold fs-5 d-flex align-items-center ms-3 py-2" data-bs-toggle="collapse" data-bs-target="#month-@yearGroup.Key-@monthGroup.Key" aria-expanded="false" aria-controls="month-@yearGroup.Key-@monthGroup.Key">
+                                                    @monthGroup.Key
+                                                </a>
+                                                <ul class="list-unstyled collapse" id="month-@yearGroup.Key-@monthGroup.Key">
+                                                    @foreach (var post in monthGroup)
+                                                    {
+                                                        <li class="ms-4">
+                                                            <a href="@post.Url" class="fs-6 d-flex align-items-center ms-3 py-3 justify-content-between">
+                                                                <span class="w-75">@post.Title</span>
+                                                                <span class="fst-italic ms-2">@post.EventDate.ToString("dd MMM yyyy")</span>
+                                                            </a>
+                                                        </li>
+                                                    }
+                                                </ul>
+                                            </li>
+                                        }
+                                    </ul>
+                                </li>
+                            }
+                        }
+                    </ul>
+                    <!-- Tags Section -->
+                    <div class="d-flex align-items-center mt-5">
+                        <h3 class="fw-bold mb-3 me-3">@Umbraco.GetDictionaryValue("Tags")</h3>
+                        <div class="flex-grow-1 border-2 border-top pb-3"></div>
+                    </div>
+                    @{
+                        // Collect all tags from events
+                        var allTags = eventsPage?.Children<EventItemPage>()
+                        .SelectMany(post => post.Value<IEnumerable<string>>("tags") ?? Enumerable.Empty<string>())
+                        .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                        .Select(tag => tag.ToLowerInvariant())
+                        .Distinct()
+                        .OrderBy(tag => tag)
+                        .ToList();
+                    }
+                    <ul class="list-unstyled ms-5">
+                        @if (allTags != null && allTags.Any())
+                        {
+                            foreach (var tag in allTags)
+                            {
+                                <li>
+                                    <a href="?tag=@tag" class="fw-semibold fs-5 d-flex align-items-center py-2">
+                                        <i class="fa fa-tag me-2"></i>
+                                        <span class="text-capitalize">@tag</span>
+                                    </a>
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <li class="text-dark">@Umbraco.GetDictionaryValue("NoTags")</li>
+                        }
+                    </ul>
+                </aside>
+            </div>
+        </div>
+    </div>
+</main>

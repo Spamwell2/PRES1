@@ -1,0 +1,409 @@
+﻿@using Umbraco.Cms.Web.Common.PublishedModels;
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContentModels.EventItemPage>
+@using ContentModels = Umbraco.Cms.Web.Common.PublishedModels;
+@using Umbraco.Cms.Core.Models.PublishedContent;
+@using System.Linq;
+@using Newtonsoft.Json;
+
+@{
+    Layout = "_layout";
+
+    var pageTitle = !string.IsNullOrWhiteSpace(Model?.PageTitle)
+        ? Model.PageTitle
+        : Model?.Name;
+
+    var displayEventDate = Model?.Value<DateTime?>("eventDate") != null && Model.Value<DateTime>("eventDate") > DateTime.MinValue
+        ? Model.Value<DateTime>("eventDate")
+        : Model?.CreateDate;
+
+    var formattedDate = displayEventDate?.ToString("dd MMM yyyy");
+
+    var summaryText = Model?.Value<string>("summaryText");
+    var eventOrganiser = Model?.Value<string>("eventOrganiser");
+    var organiserEmail = Model?.Value<string>("organiserEmail");
+
+    // Get category from the Event Item Page.
+    // Category is stored as JSON, e.g., ["Music"], because of the Umbraco dropdown datatype.
+    var category = string.Empty;
+
+    var rawCategory = Model?.Value<string>("category");
+
+    if (!string.IsNullOrWhiteSpace(rawCategory))
+    {
+        try
+        {
+            var parsedCategories = JsonConvert.DeserializeObject<string[]>(rawCategory);
+            category = parsedCategories?.FirstOrDefault() ?? string.Empty;
+        }
+        catch
+        {
+            category = rawCategory;
+        }
+    }
+
+    category = category?.Trim() ?? string.Empty;
+
+    var translatedCategory = !string.IsNullOrWhiteSpace(category)
+        ? Umbraco.GetDictionaryValue(category)
+        : string.Empty;
+
+    var categoryDisplay = !string.IsNullOrWhiteSpace(translatedCategory)
+        ? translatedCategory
+        : category;
+
+    // Get category icon from parent Events page category blocklist.
+    var eventsLandingPage = Model?.Parent as ContentModels.Events;
+    var categoryBlocks = eventsLandingPage?.Categories;
+
+    var matchingCategory = categoryBlocks?
+        .FirstOrDefault(c => c.Content.Value<string>("category") == category);
+
+    var categoryIcon = matchingCategory?.Content.Value<string>("icon");
+
+    if (string.IsNullOrWhiteSpace(categoryIcon) || categoryIcon == "Select Icon")
+    {
+        categoryIcon = "fa-solid fa-folder";
+    }
+
+    var tags = Model?.Value<IEnumerable<string>>("tags") ?? Enumerable.Empty<string>();
+    var visibleTags = tags.Take(3).ToList();
+
+    var morePosts = Model?.Parent?.Children<EventItemPage>()
+        .Where(x => x.Id != Model.Id)
+        .OrderByDescending(x =>
+            (x.Value<DateTime?>("eventDate") != null && x.Value<DateTime>("eventDate") > DateTime.MinValue)
+                ? x.Value<DateTime>("eventDate")
+                : x.CreateDate
+        )
+        .Take(8)
+        .ToList();
+
+    var currentCulture = Umbraco.CultureDictionary.Culture.Name;
+    var oppositeCulture = currentCulture == "cy-GB" ? "en-GB" : "cy-GB";
+
+    var image = Model?.Value<IPublishedContent>("mainImage", culture: currentCulture)
+            ?? Model?.Value<IPublishedContent>("mainImage", culture: oppositeCulture);
+
+    var imageUrl = image?.Url() ?? Url.Content("~/media/fallback_image");
+
+    var disableComments = Model?.DisableComments ?? false;
+    var hideComments = Model?.HideComments ?? false;
+}
+
+<main id="main">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            @await Html.PartialAsync("site/breadcrumb")
+
+            <div class="col-12 col-xl-10">
+
+                <!-- Event Hero -->
+                <article class="event-detail-hero border rounded shadow-sm overflow-hidden mb-5">
+                    <div class="row g-0 align-items-stretch">
+
+                        <div class="col-lg-5 bg-primary text-white d-flex">
+                            <div class="p-4 p-lg-5 d-flex flex-column justify-content-center h-100">
+
+                                <a href="/events/" class="btn btn-sm btn-outline-light align-self-start mb-5 d-inline-flex align-items-center">
+                                    <i class="fa fa-chevron-left me-2" aria-hidden="true"></i>
+                                    @Umbraco.GetDictionaryValue("AllPosts")
+                                </a>
+
+                                <h1 class="fw-bold display-5 text-shadow">
+                                    @pageTitle
+                                </h1>
+
+                                <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+                                    @if (!string.IsNullOrWhiteSpace(categoryDisplay))
+                                    {
+                                        <span class="badge rounded-pill bg-light text-primary-emphasis d-inline-flex align-items-center gap-2">
+                                            <i class="@categoryIcon" aria-hidden="true"></i>
+                                            <span>@categoryDisplay</span>
+                                        </span>
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(formattedDate))
+                                    {
+                                        <span class="small fw-semibold text-uppercase">
+                                            <i class="fa fa-calendar me-1" aria-hidden="true"></i>
+                                            @formattedDate
+                                        </span>
+                                    }
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(Model?.PageSubtitle))
+                                {
+                                    <p class="lead mb-3">
+                                        @Model.PageSubtitle
+                                    </p>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(summaryText))
+                                {
+                                    <p class="mb-3">
+                                        @summaryText
+                                    </p>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(eventOrganiser))
+                                {
+                                    <p class="small mb-3">
+                                        <i class="fa fa-user me-1" aria-hidden="true"></i>
+                                        <span class="fw-semibold">Organised by:</span> @eventOrganiser
+                                    </p>
+                                }
+
+                                @if (visibleTags.Any())
+                                {
+                                    <div class="d-flex flex-wrap gap-2 mt-2">
+                                        @foreach (var tag in visibleTags)
+                                        {
+                                            <span class="badge rounded-pill border border-light text-white">
+                                                <i class="fa fa-tag me-1" aria-hidden="true"></i>
+                                                @tag
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="col-lg-7">
+                            <div class="ratio ratio-16x9 h-100">
+                                <img src="@imageUrl"
+                                     class="w-100 h-100 object-fit-cover"
+                                     alt="@pageTitle" />
+                            </div>
+                        </div>
+
+                    </div>
+                </article>
+
+                <!-- Event Details -->
+                <div class="row justify-content-center mb-4">
+                    <div class="col-lg-8">
+                        <section class="border rounded p-4 bg-light">
+                            <h2 class="fs-4 fw-bold mb-3">Event details</h2>
+
+                            <dl class="row mb-0">
+                                @if (!string.IsNullOrWhiteSpace(formattedDate))
+                                {
+                                    <dt class="col-sm-4">Date</dt>
+                                    <dd class="col-sm-8">@formattedDate</dd>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(categoryDisplay))
+                                {
+                                    <dt class="col-sm-4">Category</dt>
+                                    <dd class="col-sm-8">@categoryDisplay</dd>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(eventOrganiser))
+                                {
+                                    <dt class="col-sm-4">Organiser</dt>
+                                    <dd class="col-sm-8">@eventOrganiser</dd>
+                                }
+
+                                @if (!string.IsNullOrWhiteSpace(organiserEmail))
+                                {
+                                    <dt class="col-sm-4">Contact</dt>
+                                    <dd class="col-sm-8">
+                                        <a href="mailto:@organiserEmail">@organiserEmail</a>
+                                    </dd>
+                                }
+
+                                @if (tags.Any())
+                                {
+                                    <dt class="col-sm-4">Tags</dt>
+                                    <dd class="col-sm-8">@string.Join(", ", tags)</dd>
+                                }
+                            </dl>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- Main Content -->
+                <div class="row justify-content-center">
+                    <div class="col-lg-8">
+                        @Html.GetBlockListHtml(Model?.MainContent)
+                    </div>
+                </div>
+
+                <!-- Comments Section -->
+                <div class="row justify-content-center">
+                    <div class="col-lg-8 py-3">
+
+                        @if (!hideComments)
+                        {
+                            <section id="existing-comments" class="border-top border-bottom py-3">
+                                <h2 class="fw-bold fs-4 my-3">@Umbraco.GetDictionaryValue("Comments")</h2>
+
+                                @if (Model.Children<ContentModels.Comment>().Any(x => x.Value<bool>("approved")))
+                                {
+                                    <ul class="list-unstyled">
+                                        @foreach (var comment in Model.Children<ContentModels.Comment>().Where(x => x.Value<bool>("approved")))
+                                        {
+                                            <li class="mb-3">
+                                                <div class="border rounded p-3">
+                                                    <p class="fw-bold">@comment.Author</p>
+                                                    <p class="mb-1">@comment.DatePosted.ToString("dd MMM yyyy  hh:mm tt")</p>
+                                                    <p>@comment.Content</p>
+                                                </div>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    <p>@Umbraco.GetDictionaryValue("NoComments")</p>
+                                }
+                            </section>
+                        }
+
+                        @if (!disableComments)
+                        {
+                            <section id="comments" class="border-bottom py-3">
+                                <h2 class="fw-bold fs-4 my-3">@Umbraco.GetDictionaryValue("Comment")</h2>
+
+                                <form id="comment-form" method="post" action="@Url.Action("SubmitComment", "Comments")">
+                                    <input type="hidden" name="postId" value="@Model.Key" />
+
+                                    <div class="mb-3">
+                                        <label for="author" class="form-label">@Umbraco.GetDictionaryValue("Name")</label>
+                                        <input type="text" name="author" class="form-control" id="author" required />
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="email" class="form-label">@Umbraco.GetDictionaryValue("Email")</label>
+                                        <input type="email" name="email" class="form-control" id="email" />
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="content" class="form-label">@Umbraco.GetDictionaryValue("Message")</label>
+                                        <textarea name="content" class="form-control" id="content" rows="4" required></textarea>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary mb-2">
+                                        @Umbraco.GetDictionaryValue("Submit")
+                                    </button>
+                                </form>
+
+                                <div id="comment-success" class="alert alert-success mt-3" style="display:none;"></div>
+                                <div id="comment-error" class="alert alert-danger mt-3" style="display:none;"></div>
+                            </section>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- More Posts Section -->
+        @if (morePosts != null && morePosts.Any())
+        {
+            <div class="row justify-content-center mt-4">
+                <div class="col-md-10">
+                    <h2 class="fw-bold fs-4 py-2 m-0">@Umbraco.GetDictionaryValue("MorePosts")</h2>
+
+                    <div id="morePostsSwiper" class="swiper-container">
+
+                        <div class="d-flex justify-content-center align-items-center text-center mb-3">
+                            <div class="pagination-button position-static mx-1 rounded swiper-button-prev">
+                                <i class="fa fa-chevron-left"></i>
+                            </div>
+                            <div class="pagination-button position-static mx-1 rounded swiper-button-next">
+                                <i class="fa fa-chevron-right"></i>
+                            </div>
+                        </div>
+
+                        <div class="swiper-wrapper">
+                            @foreach (var post in morePosts)
+                            {
+                                var postImage = post?.Value<IPublishedContent>("mainImage", culture: currentCulture)
+                                ?? post?.Value<IPublishedContent>("mainImage", culture: oppositeCulture);
+
+                                var postImageUrl = postImage != null
+                                ? postImage.GetCropUrl(400, 300)
+                                : Url.Content("~/media/card_fallback");
+
+                                var postTitle = !string.IsNullOrWhiteSpace(post?.Value<string>("pageTitle"))
+                                ? post.Value<string>("pageTitle")
+                                : post?.Name;
+
+                                var postSummary = post?.Value<string>("summaryText");
+                                var postUrl = post?.Url();
+
+                                var postEventDate = post?.Value<DateTime?>("eventDate") != null && post.Value<DateTime>("eventDate") > DateTime.MinValue
+                                ? post.Value<DateTime>("eventDate")
+                                : post?.CreateDate;
+
+                                var postDate = postEventDate?.ToString("dd MMM yyyy");
+
+                                <div class="swiper-slide d-flex flex-wrap h-auto justify-content-center">
+                                    <div class="category-item">
+                                        <div class="img-wrapper">
+                                            <a href="@postUrl">
+                                                <img src="@postImageUrl" class="img-fluid rounded" alt="@postTitle" />
+                                                <div class="published-date">
+                                                    <span class="badge">@postDate</span>
+                                                </div>
+                                            </a>
+                                        </div>
+
+                                        <div class="category-content justify-content-start">
+                                            <h3 class="fs-5 fw-semibold">
+                                                <a href="@postUrl" class="text-dark">@postTitle</a>
+                                            </h3>
+
+                                            @if (!string.IsNullOrWhiteSpace(postSummary))
+                                            {
+                                                <p class="card-text px-3 pt-3">
+                                                    @(postSummary.Length > 150
+                                                    ? postSummary.Substring(0, 150) + "..."
+                                                    : postSummary)
+                                                </p>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</main>
+
+@section Footer {
+    <script>
+        $(document).ready(function () {
+
+            $("#comment-form").on("submit", function (e) {
+                e.preventDefault();
+
+                var form = $(this);
+
+                $("#comment-success").hide().empty();
+                $("#comment-error").hide().empty();
+
+                $.ajax({
+                    url: form.attr("action"),
+                    type: "POST",
+                    data: form.serialize(),
+                    success: function (response) {
+                        if (response.success) {
+                            form.slideUp("slow");
+                            $("#comment-success").html(response.message).slideDown("slow");
+                        } else {
+                            $("#comment-error").html(response.message).slideDown("slow");
+                        }
+                    },
+                    error: function () {
+                        $("#comment-error").html("An unexpected error occurred. Please try again.").slideDown("slow");
+                    }
+                });
+            });
+
+        });
+    </script>
+}

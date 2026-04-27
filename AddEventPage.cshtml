@@ -1,0 +1,262 @@
+﻿@using PRES1.Models
+@using Umbraco.Cms.Web.Common.PublishedModels
+@using ContentModels = Umbraco.Cms.Web.Common.PublishedModels;
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContentModels.AddEventPage>
+
+@{
+    Layout = "_layout.cshtml";
+    var pageTitle = !string.IsNullOrEmpty(Model.PageTitle) ? Model.PageTitle : Model.Name;
+    var model = new AddEventViewModel();
+}
+
+<section class="add-event-page" id="main">
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            @if (!string.IsNullOrEmpty(pageTitle))
+            {
+                <h1 class="d-flex justify-content-center text-center fw-bold fs-0 text-shadow bg-primary text-white py-5">@pageTitle</h1>
+            }
+            @if (!string.IsNullOrEmpty(Model?.PageSubtitle))
+            {
+                <h2 class="d-flex justify-content-center text-center fw-semibold fs-3 text-shadow bg-primary text-white pb-5 mt-0">@Model.PageSubtitle</h2>
+            }
+            <div class="container-fluid">
+                <div class="row justify-content-center">
+                    @await Html.PartialAsync("site/breadcrumb")
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container py-5 add-event-page">
+        <div class="row g-4 justify-content-center">
+            <div class="col-lg-4">
+                <div class="pe-lg-4">
+                    @if (!string.IsNullOrWhiteSpace(Model.IntroText))
+                    {
+                        <p class="lead mb-3">@Model.IntroText</p>
+                    }
+
+                    <p>
+                        Use this form to submit a public event to Eventify. Required fields are marked with an asterisk.
+                    </p>
+
+                    <p>
+                        Submitted events are reviewed before they appear publicly on the website.
+                    </p>
+
+                    @if (Model.MainContent != null && Model.MainContent.Any())
+                    {
+                        @await Html.GetBlockListHtmlAsync(Model.MainContent)
+                    }
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0 add-event-card">
+                    <div class="card-body p-4 p-lg-5">
+                        <form id="addEventForm" enctype="multipart/form-data" novalidate>
+                            @Html.AntiForgeryToken()
+
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="Title">Event title *</label>
+                                    <input class="form-control" id="Title" name="Title" maxlength="100" required />
+                                    <div class="invalid-feedback">Please enter an event title.</div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label" for="Subtitle">Event subtitle</label>
+                                    <input class="form-control" id="Subtitle" name="Subtitle" maxlength="120" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label" for="EventDate">Event date *</label>
+                                    <input class="form-control" type="date" id="EventDate" name="EventDate" required />
+                                    <div class="invalid-feedback">Please choose an event date.</div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label" for="Category">Category *</label>
+                                    <select class="form-select" id="Category" name="Category" required>
+                                        <option value="">Select a category</option>
+                                        <option value="Music">Music</option>
+                                        <option value="Theatre">Theatre</option>
+                                        <option value="Community">Community</option>
+                                        <option value="Sports">Sports</option>
+                                        <option value="Christmas">Christmas</option>
+                                        <option value="Food & Drink">Food & Drink</option>
+                                        <option value="Education">Education</option>
+                                        <option value="Walks, Tours & Outdoor Activities">Walks, Tours & Outdoor Activities</option>
+                                    </select>
+                                    <div class="invalid-feedback">Please select a category.</div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label" for="SummaryText">Summary *</label>
+                                    <textarea class="form-control" id="SummaryText" name="SummaryText" rows="4" maxlength="300" required></textarea>
+                                    <div class="form-text">A short summary for the event card and listing page.</div>
+                                    <div class="invalid-feedback">Please enter a summary.</div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label" for="Tags">Tags</label>
+                                    <input class="form-control" id="Tags" name="Tags" maxlength="250" placeholder="e.g. live music, family, outdoors" />
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label" for="EventOrganiser">Event organiser *</label>
+                                    <input class="form-control" id="EventOrganiser" name="EventOrganiser" maxlength="100" required />
+                                    <div class="invalid-feedback">Please enter the organiser name.</div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label" for="OrganiserEmail">Organiser email *</label>
+                                    <input class="form-control" type="email" id="OrganiserEmail" name="OrganiserEmail" maxlength="150" required />
+                                    <div class="invalid-feedback">Please enter a valid email address.</div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label" for="MainImage">Event image</label>
+                                    <input class="form-control" type="file" id="MainImage" name="MainImage" accept=".jpg,.jpeg,.png,.webp" />
+                                    <div class="form-text">
+                                        Allowed: JPG, PNG, WEBP. Max size: 5MB
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" id="ConfirmSubmission" name="ConfirmSubmission" value="true" required />
+                                        <label class="form-check-label" for="ConfirmSubmission">
+                                            I confirm that the submitted event information is accurate. *
+                                        </label>
+                                        <div class="invalid-feedback d-block visually-hidden" id="confirmSubmissionError">
+                                            You must confirm the submission.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 mx-auto text-center pt-2">
+                                    <button type="submit" class="btn btn-lg">Submit event</button>
+                                </div>
+                            </div>
+
+                            <div id="addEventMessage" class="mt-4" aria-live="polite"></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    (function () {
+        const form = document.getElementById("addEventForm");
+        const message = document.getElementById("addEventMessage");
+        const confirmCheckbox = document.getElementById("ConfirmSubmission");
+        const confirmError = document.getElementById("confirmSubmissionError");
+        const submitButton = form?.querySelector('button[type="submit"]');
+
+        if (!form) return;
+
+        function formatValidationErrors(errors) {
+            if (!errors) return "";
+            const items = [];
+
+            Object.keys(errors).forEach(key => {
+                const fieldErrors = errors[key];
+                if (Array.isArray(fieldErrors)) {
+                    fieldErrors.forEach(error => items.push(`<li>${error}</li>`));
+                }
+            });
+
+            return items.length ? `<ul class="mb-0">${items.join("")}</ul>` : "";
+        }
+
+        form.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            message.innerHTML = "";
+            confirmError?.classList.add("visually-hidden");
+
+            if (!form.checkValidity()) {
+                e.stopPropagation();
+                form.classList.add("was-validated");
+
+                if (confirmCheckbox && !confirmCheckbox.checked) {
+                    confirmError?.classList.remove("visually-hidden");
+                }
+
+                return;
+            }
+
+            const fileInput = document.getElementById("MainImage");
+
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+
+                const allowed = ["image/jpeg", "image/png", "image/webp"];
+                const maxSize = 5 * 1024 * 1024;
+
+                if (!allowed.includes(file.type)) {
+                    message.innerHTML = "<div class='alert alert-danger'>Invalid image type</div>";
+                    return;
+                }
+
+                if (file.size > maxSize) {
+                    message.innerHTML = "<div class='alert alert-danger'>Image too large (max 5MB)</div>";
+                    return;
+                }
+            }
+
+            const formData = new FormData(form);
+
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.setAttribute("aria-disabled", "true");
+            }
+
+            try {
+                const response = await fetch("/api/events/create", {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+
+                const contentType = response.headers.get("content-type") || "";
+                let result = null;
+
+                if (contentType.includes("application/json") || contentType.includes("application/problem+json")) {
+                    result = await response.json();
+                }
+
+                if (response.ok && result?.success) {
+                    message.innerHTML = `<div class="alert alert-success" role="status">${result.message}</div>`;
+                    form.reset();
+                    form.classList.remove("was-validated");
+                } else {
+                    let errorHtml = "There was a problem submitting your event.";
+
+                    if (result?.errors) {
+                        errorHtml = formatValidationErrors(result.errors);
+                    } else if (result?.message) {
+                        errorHtml = result.message;
+                    } else if (result?.title) {
+                        errorHtml = result.title;
+                    }
+
+                    message.innerHTML = `<div class="alert alert-danger" role="alert">${errorHtml}</div>`;
+                }
+            } catch {
+                message.innerHTML = `<div class="alert alert-danger" role="alert">An unexpected error occurred. Please try again later.</div>`;
+            } finally {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.removeAttribute("aria-disabled");
+                }
+            }
+        });
+    })();
+</script>

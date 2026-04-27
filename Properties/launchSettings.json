@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "PRES1": {
+      "dotnetRunMessages": true,
+      "applicationUrl": "https://localhost:7429;http://localhost:5722",
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "launchBrowser": true
+    }
+  },
+  "$schema": "https://json.schemastore.org/launchsettings.json"
+}

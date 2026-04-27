@@ -1,0 +1,45 @@
+﻿@using Umbraco.Cms.Web.Common.PublishedModels;
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContentModels.HoldingPage>
+@using ContentModels = Umbraco.Cms.Web.Common.PublishedModels;
+@{
+    var pageTitle = Model.Heading != null ? Model.Heading : Model.Name;
+    var logo = Model?.Logo?.Url() ?? string.Empty;
+    var image = Model?.MainImage?.Url() ?? string.Empty;
+    var contentKey = Model.Key.ToString();
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>@pageTitle</title>
+    <link rel="stylesheet" type="text/css" href="/assets/css/holding-page.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="holding-page-container">
+        <div class="logo">
+            <img src="@logo" alt="" />
+        </div>
+        <h1>@pageTitle</h1>
+        @* Maintenance page *@
+        @if (contentKey == "2b825585-9089-4276-9ea6-647855d3acb3")
+        {
+            <i class="fa-solid fa-screwdriver-wrench fa-5x"></i>
+        }
+        // 500 error page
+        else if (contentKey == "8b4ffbc6-5ef8-4ad9-893a-ed1acd740def")
+        {
+            <i class="fa-solid fa-server fa-5x"></i>
+        }
+        // 404 error page
+        else if (contentKey == "4c8aca9d-bd33-4111-94a4-f19db4f07c0d")
+        {
+            <i class="fa-solid fa-circle-exclamation fa-5x"></i>
+        }
+        <p>@Html.Raw(Model.Text)</p>
+        <img src="@image" alt="" />
+    </div>
+    <div class="copyright">
+        <p>© Cyngor Bwrdeistref Sirol Merthyr Tudful / Merthyr Tydfil County Borough Council @DateTime.Now.Year</p>
+    </div>
+</body>
+</html>

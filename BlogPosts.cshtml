@@ -1,0 +1,9 @@
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<ContentModels.BlogPosts>
+@{
+    var homePage = Model.AncestorsOrSelfOfType("homePage").FirstOrDefault();
+    if (homePage != null)
+    {
+        Response.Redirect(homePage.Url());
+        return;
+    }
+}
